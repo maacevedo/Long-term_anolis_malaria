@@ -1,0 +1,168 @@
+library(AICcmodavg)
+
+data=read.csv("Data/Data_1991_2016.csv")
+attach(data)
+
+cand.models=list()
+
+cand.models[[1]]=glm(infection~1, family=binomial(logit), data=data)
+
+cand.models[[2]]=glm(infection~sex+svl+season, family=binomial(logit), data=data)
+
+cand.models[[3]]=glm(infection~sex*svl+season, family=binomial(logit), data=data)
+
+cand.models[[4]]=glm(infection~sex*svl+season+year, family=binomial(logit), data=data)#best model
+
+cand.models[[5]]=glm(infection~sex+svl+season+year, family=binomial(logit), data=data)
+
+cand.models[[6]]=glm(infection~sex, family=binomial(logit), data=data)
+
+cand.models[[7]]=glm(infection~svl, family=binomial(logit), data=data)
+
+cand.models[[8]]=glm(infection~year, family=binomial(logit), data=data)
+
+modnames=c("Null","sex+svl+season","sex*svl+season","sex*svl+season+year","sex+svl+season+year","sex","svl","year")
+
+aictab(cand.set=cand.models,modnames=modnames,sort=TRUE)
+
+library(extrafont)
+font_import()
+loadfonts()
+require(effects)
+require(dplyr)
+require(foreign)
+require(nnet)
+require(ggplot2)
+require(reshape2)
+library(devtools)
+#install_github("easyGgplot2", "kassambara")
+library(easyGgplot2)
+
+############################
+#Input data
+############################
+
+data=read.csv("Data/Data_1991_2016.csv")
+
+data$season=as.factor(data$season)
+
+######################
+#Model and predictions
+######################
+data$sex=as.factor(data$sex)
+
+mod=glm(infection~sex*svl+season+year, family=binomial(logit), data=data)
+summary(mod)
+
+newdata1<-with(data,data.frame(sex=as.factor(1),season="summer",svl=mean(svl[sex==1],na.rm=T),year=unique(data$year[data$season=="summer"])))#males
+
+
+newdata2<-with(data,data.frame(sex=as.factor(2),season="summer",svl=mean(svl[sex==2],na.rm=T),year=unique(data$year[data$season=="summer"])))#females
+
+
+newdata1$yearP <- predict(mod, newdata = newdata1, type = "response")#m
+newdata2$yearP <- predict(mod, newdata = newdata2, type = "response")#f
+
+newdata1.se<-cbind(newdata1,predict(mod,newdata1,type="link",se=TRUE))#m
+newdata2.se<-cbind(newdata2,predict(mod,newdata2,type="link",se=TRUE))#f
+
+#predicted and bounds for
+
+#males
+newdata1.LU <- within(newdata1.se, {
+  PredictedProb.1 <- plogis(fit)
+  LL <- plogis(fit - (1.96 * se.fit))
+  UL <- plogis(fit + (1.96 * se.fit))
+})
+
+#females
+newdata2.LU <- within(newdata2.se, {
+  PredictedProb.1 <- plogis(fit)
+  LL <- plogis(fit - (1.96 * se.fit))
+  UL <- plogis(fit + (1.96 * se.fit))
+})
+
+
+eff<-as.data.frame(rbind(newdata1.LU,newdata2.LU))
+eff$sex=as.factor(c(rep("males",6),rep("females",6)))
+eff=data.frame(eff)
+eff
+
+
+P1=ggplot(eff, aes(x=year, y=PredictedProb.1, group=as.factor(sex),colour=sex))+
+geom_line(size=1) + geom_point()+
+geom_errorbar(aes(ymin=LL, ymax=UL), width=.2)+theme(legend.position="top")+ylab("probability of infection")+
+scale_color_manual(values=c('gray','black'))+
+theme(plot.title=element_text(face="bold", size=16, vjust=2, family="Times New Roman"),axis.title.y=element_text(vjust=-1, size=12, family="Times New Roman"),legend.text=element_text(size=10, family="Times New Roman"),legend.title=element_text(size=10,family="Times New Roman"),axis.text.y=element_text(size=10,family="Times New Roman"),
+panel.background = element_rect(fill = 'white', colour = 'gray'),
+panel.grid.major=element_line(colour="gray98"),
+legend.key = element_rect(fill = "white"),axis.title.x = element_blank(),
+legend.position="top",
+        legend.justification="center",
+        legend.margin=margin(0,0,0,0),
+        legend.box.margin=margin(-10,-10,-10,-10)
+)
+
+P1=P1+annotate("text",x=1.4,y=0.5,label="(a) summer",family="Times New Roman")
+
+
+##############
+#Winter
+##############
+
+newdata1.w<-with(data,data.frame(sex=as.factor(1),season="winter",svl=mean(svl[sex==1],na.rm=T),year=unique(data$year[data$season=="winter"])))#males
+
+
+newdata2.w<-with(data,data.frame(sex=as.factor(2),season="winter",svl=mean(svl[sex==2],na.rm=T),year=unique(data$year[data$season=="winter"])))#females
+
+
+newdata1.w$yearP <- predict(mod, newdata = newdata1.w, type = "response")#m
+newdata2.w$yearP <- predict(mod, newdata = newdata2.w, type = "response")#f
+
+newdata1.w.se<-cbind(newdata1.w,predict(mod,newdata1.w,type="link",se=TRUE))#m
+newdata2.w.se<-cbind(newdata2.w,predict(mod,newdata2.w,type="link",se=TRUE))#f
+
+#predicted and bounds for
+
+#males
+newdata1.w.LU <- within(newdata1.w.se, {
+  PredictedProb.1 <- plogis(fit)
+  LL <- plogis(fit - (1.96 * se.fit))
+  UL <- plogis(fit + (1.96 * se.fit))
+})
+
+#females
+newdata2.w.LU <- within(newdata2.w.se, {
+  PredictedProb.1 <- plogis(fit)
+  LL <- plogis(fit - (1.96 * se.fit))
+  UL <- plogis(fit + (1.96 * se.fit))
+})
+
+
+eff.w<-as.data.frame(rbind(newdata1.w.LU,newdata2.w.LU))
+eff.w$sex=as.factor(c(rep("males",7),rep("females",7)))
+eff.w=data.frame(eff.w)
+eff.w
+
+
+P2<-ggplot(eff.w, aes(x=year, y=PredictedProb.1, group=as.factor(sex),colour=sex))+
+geom_line(size=1) + geom_point()+
+geom_errorbar(aes(ymin=LL, ymax=UL), width=.2)+xlab("year")+ylab("probability of infection")+
+scale_color_manual(values=c('gray','black'))+
+
+scale_x_discrete(labels=c("1991", "1997w" = "1997","1998w"="1998","1999", "2001","2002","2016w"="2016"))+
+
+theme(plot.title=element_text(face="bold", size=16, vjust=2, family="Times New Roman"),axis.title.x=element_text(vjust=-1, size=12, family="Times New Roman"),axis.title.y=element_text(vjust=-1, size=12, family="Times New Roman"),axis.text.x=element_text(size=10,family="Times New Roman"),axis.text.y=element_text(size=10,family="Times New Roman"),
+panel.background = element_rect(fill = 'white', colour = 'gray'),
+panel.grid.major=element_line(colour="gray98"),legend.position="none"
+)
+
+
+
+
+P2=P2+annotate("text",x=1.4,y=0.5,label="(b) winter",family="Times New Roman")
+
+
+
+ggplot2.multiplot(P1,P2,cols=1)
+
